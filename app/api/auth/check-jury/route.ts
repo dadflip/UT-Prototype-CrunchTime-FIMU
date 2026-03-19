@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentJuryMember } from '@/lib/supabase';
+import { getCurrentJuryMember } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
   try {
