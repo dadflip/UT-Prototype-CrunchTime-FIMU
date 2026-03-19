@@ -37,7 +37,8 @@ export default function ResultsPage() {
         const { data: categoriesData } = await supabase
           .from('categories')
           .select('*')
-          .order('display_order', { ascending: true });
+          .eq('is_active', true)
+          .order('order_index', { ascending: true });
 
         setCategories(categoriesData || []);
 
@@ -59,11 +60,26 @@ export default function ResultsPage() {
 
     const loadResults = async () => {
       try {
-        // Fetch all votes for this category
+        // Get current voting session
+        const { data: session } = await supabase
+          .from('voting_sessions')
+          .select('id')
+          .eq('status', 'open')
+          .limit(1)
+          .single();
+
+        if (!session) {
+          setArtistVotes([]);
+          setTotalVotes(0);
+          return;
+        }
+
+        // Fetch all votes for this category in this session
         const { data: votesData } = await supabase
           .from('votes')
-          .select('*')
-          .eq('category_id', selectedCategory);
+          .select('*, artists(category_id)')
+          .eq('session_id', session.id)
+          .eq('artists.category_id', selectedCategory);
 
         setTotalVotes(votesData?.length || 0);
 
@@ -71,7 +87,8 @@ export default function ResultsPage() {
         const { data: artistsData } = await supabase
           .from('artists')
           .select('*')
-          .eq('category_id', selectedCategory);
+          .eq('category_id', selectedCategory)
+          .eq('is_active', true);
 
         if (!artistsData) return;
 
@@ -90,7 +107,7 @@ export default function ResultsPage() {
         (votesData || []).forEach((vote) => {
           if (artistVotesMap[vote.artist_id]) {
             artistVotesMap[vote.artist_id].totalVotes += 1;
-            artistVotesMap[vote.artist_id].totalPoints += vote.points;
+            artistVotesMap[vote.artist_id].totalPoints += vote.points; // points are auto-generated from rank_position
           }
         });
 
@@ -101,7 +118,7 @@ export default function ResultsPage() {
             averageScore:
               av.totalVotes > 0 ? Number((av.totalPoints / av.totalVotes).toFixed(2)) : 0,
           }))
-          .sort((a, b) => b.averageScore - a.averageScore);
+          .sort((a, b) => b.totalPoints - a.totalPoints);
 
         setArtistVotes(results);
       } catch (error) {

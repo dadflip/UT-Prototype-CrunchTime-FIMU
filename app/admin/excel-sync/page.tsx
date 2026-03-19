@@ -23,7 +23,7 @@ export default function ExcelSyncPage() {
         const { data } = await supabase
           .from('excel_sync_logs')
           .select('*')
-          .order('timestamp', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(10);
 
         setSyncLogs(data || []);
@@ -54,7 +54,6 @@ export default function ExcelSyncPage() {
           source_file: fileName,
           status: 'success',
           records_affected: 0,
-          timestamp: new Date().toISOString(),
         },
       ]);
 
@@ -64,7 +63,7 @@ export default function ExcelSyncPage() {
       const { data } = await supabase
         .from('excel_sync_logs')
         .select('*')
-        .order('timestamp', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(10);
 
       setSyncLogs(data || []);
@@ -117,7 +116,6 @@ export default function ExcelSyncPage() {
           source_file: 'votes-export.csv',
           status: 'success',
           records_affected: votes.length,
-          timestamp: new Date().toISOString(),
         },
       ]);
     } catch (error) {
@@ -266,7 +264,7 @@ export default function ExcelSyncPage() {
                     <p className="font-semibold capitalize">{log.operation_type}</p>
                     <p className="text-sm text-muted-foreground">{log.source_file}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(log.timestamp).toLocaleString('fr-FR')}
+                      {new Date(log.created_at).toLocaleString('fr-FR')}
                     </p>
                   </div>
 

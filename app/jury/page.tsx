@@ -18,21 +18,35 @@ export default function JuryDashboard() {
         const { data, error } = await supabase
           .from('categories')
           .select('*')
-          .order('display_order', { ascending: true });
+          .eq('is_active', true)
+          .order('order_index', { ascending: true });
 
         if (error) throw error;
         setCategories(data || []);
 
-        // Fetch vote counts per category
-        const { data: votes } = await supabase
-          .from('votes')
-          .select('category_id');
+        // Fetch current voting session and its votes
+        const { data: session } = await supabase
+          .from('voting_sessions')
+          .select('id')
+          .eq('status', 'open')
+          .limit(1)
+          .single();
 
-        const counts: Record<string, number> = {};
-        (votes || []).forEach((vote) => {
-          counts[vote.category_id] = (counts[vote.category_id] || 0) + 1;
-        });
-        setVoteCounts(counts);
+        if (session) {
+          const { data: votes } = await supabase
+            .from('votes')
+            .select('artist_id, artists(category_id)')
+            .eq('session_id', session.id);
+
+          const counts: Record<string, number> = {};
+          (votes || []).forEach((vote: any) => {
+            const categoryId = vote.artists?.category_id;
+            if (categoryId) {
+              counts[categoryId] = (counts[categoryId] || 0) + 1;
+            }
+          });
+          setVoteCounts(counts);
+        }
       } catch (error) {
         console.error('[v0] Failed to fetch categories:', error);
       } finally {
@@ -88,7 +102,7 @@ export default function JuryDashboard() {
                 <CardHeader>
                   <CardTitle>{category.name}</CardTitle>
                   <CardDescription>
-                    {voteCounts[category.id] || 0} vote(s) enregistré(s)
+                    {voteCounts[category.id] || 0} artiste(s) voté(s)
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

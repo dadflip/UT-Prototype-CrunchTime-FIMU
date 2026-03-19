@@ -21,14 +21,14 @@ export default function AdminDashboard() {
     const fetchStats = async () => {
       try {
         const [artists, categories, jury, votes, sessions] = await Promise.all([
-          supabase.from('artists').select('id', { count: 'exact', head: true }),
-          supabase.from('categories').select('id', { count: 'exact', head: true }),
-          supabase.from('jury_members').select('id', { count: 'exact', head: true }),
+          supabase.from('artists').select('id', { count: 'exact', head: true }).eq('is_active', true),
+          supabase.from('categories').select('id', { count: 'exact', head: true }).eq('is_active', true),
+          supabase.from('jury_members').select('id', { count: 'exact', head: true }).eq('is_active', true),
           supabase.from('votes').select('id', { count: 'exact', head: true }),
-          supabase.from('voting_sessions').select('is_open').order('created_at', { ascending: false }).limit(1),
+          supabase.from('voting_sessions').select('status').order('created_at', { ascending: false }).limit(1),
         ]);
 
-        const votingOpen = sessions.data?.[0]?.is_open || false;
+        const votingOpen = sessions.data?.[0]?.status === 'open' || false;
 
         setStats({
           totalArtists: artists.count || 0,

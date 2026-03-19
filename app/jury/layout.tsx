@@ -31,7 +31,7 @@ export default function JuryLayout({ children }: { children: React.ReactNode }) 
               <div>
                 <h1 className="font-bold text-lg">Fimu Voting</h1>
                 <p className="text-sm text-muted-foreground">
-                  Bienvenue, {juryMember?.name}
+                  Bienvenue, {juryMember?.member_name}
                 </p>
               </div>
             </div>
