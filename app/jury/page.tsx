@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { localDB } from '@/lib/local-storage';
 import { Category } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,36 +15,31 @@ export default function JuryDashboard() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const { data, error } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('is_active', true)
-          .order('order_index', { ascending: true });
-
-        if (error) throw error;
-        setCategories(data || []);
+        await localDB.init();
+        
+        const categoriesData = await localDB.getAll('categories');
+        const activeCategories = (categoriesData as any[]).filter((c: any) => c.is_active);
+        
+        setCategories(activeCategories);
 
         // Fetch current voting session and its votes
-        const { data: session } = await supabase
-          .from('voting_sessions')
-          .select('id')
-          .eq('status', 'open')
-          .limit(1)
-          .single();
+        const sessions = await localDB.getAll('voting_sessions');
+        const session = (sessions as any[]).find((s: any) => s.status === 'open');
 
         if (session) {
-          const { data: votes } = await supabase
-            .from('votes')
-            .select('artist_id, artists(category_id)')
-            .eq('session_id', session.id);
+          const votesData = await localDB.getAll('votes');
+          const sessionVotes = (votesData as any[]).filter((v: any) => 
+            v.category_id && activeCategories.some((c: any) => c.id === v.category_id)
+          );
 
+          // Count votes per category
           const counts: Record<string, number> = {};
-          (votes || []).forEach((vote: any) => {
-            const categoryId = vote.artists?.category_id;
-            if (categoryId) {
-              counts[categoryId] = (counts[categoryId] || 0) + 1;
+          sessionVotes.forEach((vote: any) => {
+            if (vote.category_id) {
+              counts[vote.category_id] = (counts[vote.category_id] || 0) + 1;
             }
           });
+
           setVoteCounts(counts);
         }
       } catch (error) {
@@ -55,18 +50,6 @@ export default function JuryDashboard() {
     };
 
     fetchCategories();
-
-    // Subscribe to real-time category changes
-    const subscription = supabase
-      .channel('categories_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, (payload) => {
-        console.log('[v0] Categories changed:', payload);
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
   if (loading) {

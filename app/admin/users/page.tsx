@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { localDB } from '@/lib/local-storage';
 import { JuryMember } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,12 +10,21 @@ import { FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
 import { generateRandomPIN, hashPIN } from '@/lib/auth-utils';
 
+// Helper function to generate ID fallback
+const generateId = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export default function UsersPage() {
   const [juryMembers, setJuryMembers] = useState<JuryMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
+    member_name: '',
     generatePin: true,
     customPin: '',
   });
@@ -25,13 +34,10 @@ export default function UsersPage() {
     const loadJuryMembers = async () => {
       try {
         setLoading(true);
+        await localDB.init();
 
-        const { data } = await supabase
-          .from('jury_members')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        setJuryMembers(data || []);
+        const data = await localDB.getAll('jury_members');
+        setJuryMembers(data as JuryMember[]);
       } catch (error) {
         console.error('[v0] Failed to load jury members:', error);
       } finally {
@@ -58,28 +64,23 @@ export default function UsersPage() {
     }
 
     try {
+      await localDB.init();
       const pinHash = hashPIN(pin);
 
-      const { error } = await supabase.from('jury_members').insert([
-        {
-          name: formData.name,
-          access_pin: pinHash,
-          is_active: true,
-        },
-      ]);
-
-      if (error) throw error;
+      await localDB.create('jury_members', {
+        id: generateId(),
+        member_name: formData.member_name,
+        pin_hash: pinHash,
+        email: `${formData.member_name.toLowerCase().replace(/\s+/g, '.')}@fimu.local`,
+        is_active: true,
+      });
 
       // Reload
-      const { data } = await supabase
-        .from('jury_members')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      setJuryMembers(data || []);
+      const data = await localDB.getAll('jury_members');
+      setJuryMembers(data as JuryMember[]);
 
       // Reset form
-      setFormData({ name: '', generatePin: true, customPin: '' });
+      setFormData({ member_name: '', generatePin: true, customPin: '' });
       setGeneratedPin('');
       setShowForm(false);
 
@@ -92,12 +93,8 @@ export default function UsersPage() {
 
   const toggleJuryStatus = async (juryId: string, isActive: boolean) => {
     try {
-      const { error } = await supabase
-        .from('jury_members')
-        .update({ is_active: !isActive })
-        .eq('id', juryId);
-
-      if (error) throw error;
+      await localDB.init();
+      await localDB.update('jury_members', { id: juryId, is_active: !isActive });
 
       setJuryMembers((prev) =>
         prev.map((j) =>
@@ -105,7 +102,7 @@ export default function UsersPage() {
         )
       );
     } catch (error) {
-      console.error('[v0] Failed to update jury member:', error);
+      console.error('[v0] Failed to toggle jury status:', error);
     }
   };
 
@@ -151,9 +148,9 @@ export default function UsersPage() {
                 <FieldLabel>Nom du juré</FieldLabel>
                 <Input
                   placeholder="Ex: Jean Dupont"
-                  value={formData.name}
+                  value={formData.member_name}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                    setFormData((prev) => ({ ...prev, member_name: e.target.value }))
                   }
                   required
                 />
@@ -238,7 +235,7 @@ export default function UsersPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={!formData.name || !(generatedPin || formData.customPin)}
+                  disabled={!formData.member_name || !(generatedPin || formData.customPin)}
                 >
                   Ajouter le juré
                 </Button>
@@ -268,7 +265,7 @@ export default function UsersPage() {
               <tbody>
                 {juryMembers.map((jury) => (
                   <tr key={jury.id} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-4 font-semibold">{jury.name}</td>
+                    <td className="py-3 px-4 font-semibold">{jury.member_name}</td>
                     <td className="py-3 px-4">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
@@ -281,9 +278,7 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-muted-foreground text-xs">
-                      {jury.last_login
-                        ? new Date(jury.last_login).toLocaleString('fr-FR')
-                        : 'Jamais'}
+                      Non disponible
                     </td>
                     <td className="py-3 px-4 text-right">
                       <Button

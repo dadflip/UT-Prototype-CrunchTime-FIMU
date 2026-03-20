@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldGroup, FieldLabel } from '@/components/ui/field';
+import { authenticateAdmin, setAdminSession } from '@/lib/local-auth';
 
 interface AdminLoginFormProps {
   onSuccess?: () => void;
@@ -24,24 +25,19 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/admin-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const adminUser = await authenticateAdmin(email, password);
 
-      const data = await response.json();
-
-      if (data.success) {
+      if (adminUser) {
         console.log('[v0] Admin login successful');
+        setAdminSession(adminUser);
         if (onSuccess) onSuccess();
         router.push('/admin');
       } else {
-        setError(data.error || 'Login failed');
+        setError('Email ou mot de passe invalide.');
       }
     } catch (err) {
       console.error('[v0] Login error:', err);
-      setError('An error occurred. Please try again.');
+      setError('Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setLoading(false);
     }
@@ -59,7 +55,7 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
             <FieldLabel>Email</FieldLabel>
             <Input
               type="email"
-              placeholder="admin@fimu.fr"
+              placeholder="admin@fimu.local"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}

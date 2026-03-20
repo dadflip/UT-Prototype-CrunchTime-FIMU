@@ -4,21 +4,29 @@ import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Button } from '@/components/ui/button';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { useEffect } from 'react';
+import { BarChart3, Mic, Star, Users, Film, TrendingUp, Database, Settings } from 'lucide-react';
 
 const adminMenuItems = [
-  { label: 'Dashboard', href: '/admin', icon: '📊' },
-  { label: 'Artistes', href: '/admin/artists', icon: '🎤' },
-  { label: 'Top Artistes', href: '/admin/rankings', icon: '⭐' },
-  { label: 'Utilisateurs', href: '/admin/users', icon: '👥' },
-  { label: 'Performances', href: '/admin/performance-flow', icon: '🎬' },
-  { label: 'Résultats', href: '/admin/results', icon: '📈' },
-  { label: 'Excel Sync', href: '/admin/excel-sync', icon: '📊' },
+  { label: 'Dashboard', href: '/admin', icon: <BarChart3 /> },
+  { label: 'Artistes', href: '/admin/artists', icon: <Mic /> },
+  { label: 'Top Artistes', href: '/admin/rankings', icon: <Star /> },
+  { label: 'Utilisateurs', href: '/admin/users', icon: <Users /> },
+  { label: 'Performances', href: '/admin/performance-flow', icon: <Film /> },
+  { label: 'Résultats', href: '/admin/results', icon: <TrendingUp /> },
+  { label: 'Excel Sync', href: '/admin/excel-sync', icon: <Database /> },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, admin, logout } = useAdminAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   if (isLoading) {
     return (
@@ -29,7 +37,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   if (!isAuthenticated) {
-    router.push('/');
     return null;
   }
 
@@ -41,7 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Header */}
           <div className="p-6 border-b">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">⚙️</span>
+              <Settings className="h-6 w-6" />
               <h1 className="font-bold text-lg">Admin Panel</h1>
             </div>
             <p className="text-xs text-muted-foreground">{admin?.email}</p>
@@ -55,7 +62,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   variant={pathname === item.href ? 'default' : 'ghost'}
                   className="w-full justify-start gap-3"
                 >
-                  <span>{item.icon}</span>
+                  {item.icon}
                   {item.label}
                 </Button>
               </Link>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { localDB } from '@/lib/local-storage';
 import { Artist, Ranking } from '@/types';
 import { RankingsEditor } from '@/components/admin/RankingsEditor';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,23 +15,18 @@ export default function RankingsPage() {
     const loadData = async () => {
       try {
         setLoading(true);
+        await localDB.init();
 
-        // Fetch rankings with artist data
-        const { data: rankingsData } = await supabase
-          .from('rankings')
-          .select('*, artist:artists(*)')
-          .order('rank_position', { ascending: true });
+        // Fetch rankings and artists separately
+        const [rankingsData, artistsData] = await Promise.all([
+          localDB.getAll('rankings'),
+          localDB.getAll('artists').then(artists => 
+            (artists as any[]).filter((a: any) => a.is_active !== false)
+          )
+        ]);
 
-        setRankings(rankingsData || []);
-
-        // Fetch all artists
-        const { data: artistsData } = await supabase
-          .from('artists')
-          .select('*')
-          .eq('is_visible', true)
-          .order('name', { ascending: true });
-
-        setArtists(artistsData || []);
+        setRankings(rankingsData as any[]);
+        setArtists(artistsData as Artist[]);
       } catch (error) {
         console.error('[v0] Failed to load rankings:', error);
       } finally {
@@ -44,36 +39,35 @@ export default function RankingsPage() {
 
   const handleUpdateRankings = async (updatedRankings: Ranking[]) => {
     try {
-      // Delete existing rankings
-      await supabase.from('rankings').delete().neq('id', 'null');
+      await localDB.init();
+      
+      // Clear existing rankings
+      await localDB.clearAll();
 
       // Insert updated rankings
-      const rankingsToInsert = updatedRankings.map((r) => ({
-        artist_id: r.artist_id,
-        rank_position: r.rank_position,
-        display_title: r.display_title,
-        display_order: r.display_order,
-        is_locked: r.is_locked,
-        updated_by: 'admin_user',
-      }));
-
-      const { error } = await supabase
-        .from('rankings')
-        .insert(rankingsToInsert);
-
-      if (error) throw error;
+      for (const ranking of updatedRankings) {
+        await localDB.create('rankings', {
+          ...ranking,
+          id: ranking.id || crypto.randomUUID?.() || generateId(),
+        });
+      }
 
       // Reload rankings
-      const { data: newRankings } = await supabase
-        .from('rankings')
-        .select('*, artist:artists(*)')
-        .order('rank_position', { ascending: true });
-
-      setRankings(newRankings || []);
+      const rankingsData = await localDB.getAll('rankings');
+      setRankings(rankingsData as any[]);
     } catch (error) {
       console.error('[v0] Failed to update rankings:', error);
-      alert('Erreur lors de la mise à jour du classement');
+      throw error;
     }
+  };
+
+  // Helper function to generate ID fallback
+  const generateId = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
   };
 
   if (loading) {

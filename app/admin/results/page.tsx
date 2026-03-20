@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { localDB } from '@/lib/local-storage';
 import { Category, Artist, Vote } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -32,18 +32,16 @@ export default function ResultsPage() {
     const loadData = async () => {
       try {
         setLoading(true);
+        await localDB.init();
 
         // Fetch categories
-        const { data: categoriesData } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('is_active', true)
-          .order('order_index', { ascending: true });
+        const categoriesData = await localDB.getAll('categories');
+        const activeCategories = (categoriesData as any[]).filter((c: any) => c.is_active);
+        
+        setCategories(activeCategories);
 
-        setCategories(categoriesData || []);
-
-        if (categoriesData && categoriesData.length > 0) {
-          setSelectedCategory(categoriesData[0].id);
+        if (activeCategories.length > 0) {
+          setSelectedCategory(activeCategories[0].id);
         }
       } catch (error) {
         console.error('[v0] Failed to load categories:', error);
@@ -60,13 +58,11 @@ export default function ResultsPage() {
 
     const loadResults = async () => {
       try {
+        await localDB.init();
+        
         // Get current voting session
-        const { data: session } = await supabase
-          .from('voting_sessions')
-          .select('id')
-          .eq('status', 'open')
-          .limit(1)
-          .single();
+        const sessions = await localDB.getAll('voting_sessions');
+        const session = (sessions as any[]).find((s: any) => s.status === 'open');
 
         if (!session) {
           setArtistVotes([]);
@@ -74,28 +70,26 @@ export default function ResultsPage() {
           return;
         }
 
-        // Fetch all votes for this category in this session
-        const { data: votesData } = await supabase
-          .from('votes')
-          .select('*, artists(category_id)')
-          .eq('session_id', session.id)
-          .eq('artists.category_id', selectedCategory);
+        // Fetch all votes for this category
+        const votesData = await localDB.getAll('votes');
+        const categoryVotes = (votesData as any[]).filter((v: any) => 
+          v.category_id === selectedCategory
+        );
 
-        setTotalVotes(votesData?.length || 0);
+        setTotalVotes(categoryVotes.length);
 
         // Fetch artists in this category
-        const { data: artistsData } = await supabase
-          .from('artists')
-          .select('*')
-          .eq('category_id', selectedCategory)
-          .eq('is_active', true);
+        const artistsData = await localDB.getAll('artists');
+        const activeArtists = (artistsData as any[]).filter((a: any) => 
+          a.category_id === selectedCategory && a.is_active
+        );
 
-        if (!artistsData) return;
+        if (!activeArtists.length) return;
 
         // Calculate votes per artist
         const artistVotesMap: Record<string, ArtistVotes> = {};
 
-        artistsData.forEach((artist) => {
+        activeArtists.forEach((artist) => {
           artistVotesMap[artist.id] = {
             artist,
             totalVotes: 0,
@@ -104,10 +98,10 @@ export default function ResultsPage() {
           };
         });
 
-        (votesData || []).forEach((vote) => {
+        categoryVotes.forEach((vote: any) => {
           if (artistVotesMap[vote.artist_id]) {
             artistVotesMap[vote.artist_id].totalVotes += 1;
-            artistVotesMap[vote.artist_id].totalPoints += vote.points; // points are auto-generated from rank_position
+            artistVotesMap[vote.artist_id].totalPoints += vote.score;
           }
         });
 

@@ -1,12 +1,10 @@
-// Database Types - Matching actual Supabase schema
+// Database Types - Local storage version
 export interface Category {
   id: string;
   name: string;
   description?: string;
   order_index: number;
   is_active: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface Artist {
@@ -17,8 +15,6 @@ export interface Artist {
   artist_number?: number;
   image_url?: string;
   is_active: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface JuryMember {
@@ -27,19 +23,15 @@ export interface JuryMember {
   pin_hash: string; // hashed PIN
   email?: string;
   is_active: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface Vote {
   id: string;
   artist_id: string;
   jury_member_id: string;
-  session_id: string;
-  rank_position: number;
-  points: number; // Generated: 10,8,6,4,2,0 based on rank
+  category_id: string;
+  score: number;
   created_at: string;
-  updated_at: string;
 }
 
 export interface Ranking {
@@ -51,8 +43,6 @@ export interface Ranking {
   average_rank?: number;
   final_rank?: number;
   is_finalist: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface VotingSession {
@@ -62,8 +52,6 @@ export interface VotingSession {
   category_id?: string;
   start_time?: string;
   end_time?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface AdminUser {
@@ -73,8 +61,6 @@ export interface AdminUser {
   full_name?: string;
   role: 'admin' | 'superadmin';
   is_active: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface ExcelSyncLog {

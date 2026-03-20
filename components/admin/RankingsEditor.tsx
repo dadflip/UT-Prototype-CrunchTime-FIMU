@@ -7,6 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
+import { X } from 'lucide-react';
+
+// Helper function to generate ID fallback
+const generateId = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 interface RankingsEditorProps {
   rankings: (Ranking & { artist?: Artist })[];
@@ -39,7 +49,7 @@ export function RankingsEditor({
     }
 
     const newRanking: Ranking = {
-      id: `new_${Date.now()}`,
+      id: `new_${crypto.randomUUID?.() || generateId()}`,
       artist_id: selectedArtist,
       rank_position: rankings.length + 1,
       display_title: undefined,
@@ -198,7 +208,7 @@ export function RankingsEditor({
                     onClick={() => handleRemove(index)}
                     className="text-destructive hover:text-destructive"
                   >
-                    ✕
+                    <X className="h-4 w-4" />
                   </Button>
                 </div>
               ))}

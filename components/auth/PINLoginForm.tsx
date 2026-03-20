@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FieldGroup, FieldLabel } from '@/components/ui/field';
+import { authenticateJuryByPIN, setJurySession } from '@/lib/local-auth';
 
 interface PINLoginFormProps {
   onSuccess?: () => void;
@@ -23,24 +24,19 @@ export function PINLoginForm({ onSuccess }: PINLoginFormProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/jury-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
-      });
+      const juryMember = await authenticateJuryByPIN(pin);
 
-      const data = await response.json();
-
-      if (data.success) {
+      if (juryMember) {
         console.log('[v0] Jury login successful');
+        setJurySession(juryMember);
         if (onSuccess) onSuccess();
         router.push('/jury');
       } else {
-        setError(data.error || 'Login failed');
+        setError('PIN invalide.');
       }
     } catch (err) {
       console.error('[v0] Login error:', err);
-      setError('An error occurred. Please try again.');
+      setError('Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setLoading(false);
     }
@@ -59,7 +55,7 @@ export function PINLoginForm({ onSuccess }: PINLoginFormProps) {
             <Input
               type="password"
               inputMode="numeric"
-              placeholder="0000"
+              placeholder="1234"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               maxLength={8}

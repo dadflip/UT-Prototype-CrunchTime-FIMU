@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { PINLoginForm } from '@/components/auth/PINLoginForm';
 import { AdminLoginForm } from '@/components/auth/AdminLoginForm';
+import { Music, Settings, Database } from 'lucide-react';
 
 export default function Home() {
   const [mode, setMode] = useState<'select' | 'jury' | 'admin'>('select');
@@ -30,7 +31,7 @@ export default function Home() {
                   onClick={() => setMode('jury')}
                   className="h-auto flex flex-col items-center justify-center py-6"
                 >
-                  <span className="text-2xl mb-2">🎵</span>
+                  <Music className="h-8 w-8 mb-2" />
                   <span className="font-semibold">Jury</span>
                 </Button>
                 <Button
@@ -38,8 +39,19 @@ export default function Home() {
                   onClick={() => setMode('admin')}
                   className="h-auto flex flex-col items-center justify-center py-6"
                 >
-                  <span className="text-2xl mb-2">⚙️</span>
+                  <Settings className="h-8 w-8 mb-2" />
                   <span className="font-semibold">Admin</span>
+                </Button>
+              </div>
+              
+              <div className="pt-4 border-t">
+                <Button
+                  variant="ghost"
+                  onClick={() => window.location.href = '/setup-db'}
+                  className="w-full text-xs text-muted-foreground"
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  Configuration de la base de données
                 </Button>
               </div>
             </CardContent>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { localDB } from '@/lib/local-storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -20,21 +20,26 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        await localDB.init();
+        
         const [artists, categories, jury, votes, sessions] = await Promise.all([
-          supabase.from('artists').select('id', { count: 'exact', head: true }).eq('is_active', true),
-          supabase.from('categories').select('id', { count: 'exact', head: true }).eq('is_active', true),
-          supabase.from('jury_members').select('id', { count: 'exact', head: true }).eq('is_active', true),
-          supabase.from('votes').select('id', { count: 'exact', head: true }),
-          supabase.from('voting_sessions').select('status').order('created_at', { ascending: false }).limit(1),
+          localDB.getAll('artists'),
+          localDB.getAll('categories'),
+          localDB.getAll('jury_members'),
+          localDB.getAll('votes'),
+          localDB.getAll('voting_sessions'),
         ]);
 
-        const votingOpen = sessions.data?.[0]?.status === 'open' || false;
+        const activeArtists = (artists as any[]).filter((a: any) => a.is_active).length;
+        const activeCategories = (categories as any[]).filter((c: any) => c.is_active).length;
+        const activeJury = (jury as any[]).filter((j: any) => j.is_active).length;
+        const votingOpen = (sessions as any[])[0]?.status === 'open' || false;
 
         setStats({
-          totalArtists: artists.count || 0,
-          totalCategories: categories.count || 0,
-          totalJuryMembers: jury.count || 0,
-          totalVotes: votes.count || 0,
+          totalArtists: activeArtists,
+          totalCategories: activeCategories,
+          totalJuryMembers: activeJury,
+          totalVotes: votes.length,
           votingSessionOpen: votingOpen,
         });
       } catch (error) {

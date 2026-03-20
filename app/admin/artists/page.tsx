@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { localDB } from '@/lib/local-storage';
 import { Artist, Category } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,15 @@ import {
 } from '@/components/ui/select';
 import { FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// Helper function to generate ID fallback
+const generateId = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 export default function ArtistsPage() {
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -31,22 +40,16 @@ export default function ArtistsPage() {
     const loadData = async () => {
       try {
         setLoading(true);
+        await localDB.init();
 
-        // Fetch categories
-        const { data: categoriesData } = await supabase
-          .from('categories')
-          .select('*')
-          .order('display_order', { ascending: true });
+        // Fetch categories and artists
+        const [categoriesData, artistsData] = await Promise.all([
+          localDB.getAll('categories'),
+          localDB.getAll('artists')
+        ]);
 
-        setCategories(categoriesData || []);
-
-        // Fetch artists
-        const { data: artistsData } = await supabase
-          .from('artists')
-          .select('*, category:categories(name)')
-          .order('performance_order', { ascending: true });
-
-        setArtists(artistsData || []);
+        setCategories(categoriesData as Category[]);
+        setArtists(artistsData as Artist[]);
       } catch (error) {
         console.error('[v0] Failed to load data:', error);
       } finally {
@@ -60,28 +63,22 @@ export default function ArtistsPage() {
   const handleAddArtist = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await supabase.from('artists').insert([
-        {
-          name: formData.name,
-          description: formData.description || null,
-          category_id: formData.categoryId,
-          performance_order: artists.length + 1,
-          is_visible: true,
-        },
-      ]);
-
-      if (error) throw error;
+      await localDB.init();
+      
+      await localDB.create('artists', {
+        id: generateId(),
+        name: formData.name,
+        category_id: formData.categoryId,
+        artist_number: artists.length + 1,
+        is_active: true,
+      });
 
       setFormData({ name: '', description: '', categoryId: '' });
       setShowForm(false);
 
       // Refresh artists
-      const { data: artistsData } = await supabase
-        .from('artists')
-        .select('*')
-        .order('performance_order', { ascending: true });
-
-      setArtists(artistsData || []);
+      const artistsData = await localDB.getAll('artists');
+      setArtists(artistsData as Artist[]);
     } catch (error) {
       console.error('[v0] Failed to add artist:', error);
     }
@@ -89,16 +86,12 @@ export default function ArtistsPage() {
 
   const toggleArtistVisibility = async (artistId: string, isVisible: boolean) => {
     try {
-      const { error } = await supabase
-        .from('artists')
-        .update({ is_visible: !isVisible })
-        .eq('id', artistId);
-
-      if (error) throw error;
+      await localDB.init();
+      await localDB.update('artists', { id: artistId, is_active: !isVisible });
 
       setArtists((prev) =>
         prev.map((a) =>
-          a.id === artistId ? { ...a, is_visible: !isVisible } : a
+          a.id === artistId ? { ...a, is_active: !isVisible } : a
         )
       );
     } catch (error) {
@@ -240,16 +233,16 @@ export default function ArtistsPage() {
                     <td className="py-3 px-4 text-muted-foreground">
                       {/* Category name would come from the joined data */}
                     </td>
-                    <td className="py-3 px-4">{artist.performance_order}</td>
+                    <td className="py-3 px-4">{artist.artist_number}</td>
                     <td className="py-3 px-4">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
-                          artist.is_visible
+                          artist.is_active
                             ? 'bg-green-100 text-green-800'
                             : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {artist.is_visible ? '✓ Visible' : '✗ Caché'}
+                        {artist.is_active ? '✓ Visible' : '✗ Caché'}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -257,10 +250,10 @@ export default function ArtistsPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() =>
-                          toggleArtistVisibility(artist.id, artist.is_visible)
+                          toggleArtistVisibility(artist.id, artist.is_active)
                         }
                       >
-                        {artist.is_visible ? 'Cacher' : 'Afficher'}
+                        {artist.is_active ? 'Cacher' : 'Afficher'}
                       </Button>
                     </td>
                   </tr>

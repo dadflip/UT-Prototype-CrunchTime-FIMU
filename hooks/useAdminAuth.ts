@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminUser } from '@/types';
+import { getAdminSession, clearAdminSession } from '@/lib/local-auth';
 
 export function useAdminAuth() {
   const router = useRouter();
@@ -11,16 +12,12 @@ export function useAdminAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuth = () => {
       try {
-        // Check if session exists by trying to fetch admin data
-        const response = await fetch('/api/auth/check-admin', {
-          method: 'GET',
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setAdmin(data.admin);
+        const adminData = getAdminSession();
+        
+        if (adminData) {
+          setAdmin(adminData);
           setIsAuthenticated(true);
         } else {
           setIsAuthenticated(false);
@@ -37,9 +34,9 @@ export function useAdminAuth() {
     checkAuth();
   }, [router]);
 
-  const logout = async () => {
+  const logout = () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      clearAdminSession();
       setAdmin(null);
       setIsAuthenticated(false);
       router.push('/');

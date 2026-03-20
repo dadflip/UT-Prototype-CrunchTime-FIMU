@@ -1,13 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { localDB } from '@/lib/local-storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ExcelSyncLog } from '@/types';
+
+// Helper function to generate ID fallback
+const generateId = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 export default function ExcelSyncPage() {
   const [syncLogs, setSyncLogs] = useState<ExcelSyncLog[]>([]);
@@ -19,14 +28,10 @@ export default function ExcelSyncPage() {
     const loadLogs = async () => {
       try {
         setLoading(true);
+        await localDB.init();
 
-        const { data } = await supabase
-          .from('excel_sync_logs')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(10);
-
-        setSyncLogs(data || []);
+        const data = await localDB.getAll('excel_sync_logs');
+        setSyncLogs((data as any[]).slice(0, 10));
       } catch (error) {
         console.error('[v0] Failed to load sync logs:', error);
       } finally {
@@ -48,29 +53,19 @@ export default function ExcelSyncPage() {
       const fileName = file.name;
 
       // Create log entry
-      const { error } = await supabase.from('excel_sync_logs').insert([
-        {
-          operation_type: 'import',
-          source_file: fileName,
-          status: 'success',
-          records_affected: 0,
-        },
-      ]);
-
-      if (error) throw error;
+      await localDB.create('excel_sync_logs', {
+        id: generateId(),
+        operation_type: 'import',
+        source_file: fileName,
+        status: 'success',
+        records_affected: 0,
+      });
 
       // Reload logs
-      const { data } = await supabase
-        .from('excel_sync_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      setSyncLogs(data || []);
-      alert('Fichier importé avec succès');
+      const data = await localDB.getAll('excel_sync_logs');
+      setSyncLogs((data as any[]).slice(0, 10));
     } catch (error) {
-      console.error('[v0] Upload error:', error);
-      alert('Erreur lors de l\'import du fichier');
+      console.error('[v0] Failed to upload file:', error);
     } finally {
       setUploading(false);
     }
@@ -78,25 +73,33 @@ export default function ExcelSyncPage() {
 
   const handleExportResults = async () => {
     try {
-      // Fetch all votes and artists
-      const { data: votes } = await supabase
-        .from('votes')
-        .select('*, artist:artists(name), jury:jury_members(name)');
+      await localDB.init();
+      
+      // Fetch all votes, artists and jury members
+      const [votes, artists, juryMembers] = await Promise.all([
+        localDB.getAll('votes'),
+        localDB.getAll('artists'),
+        localDB.getAll('jury_members')
+      ]);
 
-      if (!votes) {
+      if (!votes || votes.length === 0) {
         alert('Aucune donnée à exporter');
         return;
       }
 
-      // Create CSV
+      // Create CSV with joined data
       const csv = [
-        ['Artist', 'Jury Member', 'Points', 'Timestamp'],
-        ...votes.map((v) => [
-          v.artist?.name || 'Unknown',
-          v.jury?.name || 'Unknown',
-          v.points,
-          new Date(v.timestamp).toLocaleString('fr-FR'),
-        ]),
+        ['Artist', 'Jury Member', 'Score', 'Timestamp'],
+        ...(votes as any[]).map((v) => {
+          const artist = (artists as any[]).find(a => a.id === v.artist_id);
+          const jury = (juryMembers as any[]).find(j => j.id === v.jury_member_id);
+          return [
+            artist?.name || 'Unknown',
+            jury?.member_name || 'Unknown',
+            v.score,
+            new Date(v.created_at).toLocaleString('fr-FR'),
+          ];
+        }),
       ]
         .map((row) => row.map((cell) => `"${cell}"`).join(','))
         .join('\n');
@@ -110,14 +113,13 @@ export default function ExcelSyncPage() {
       window.URL.revokeObjectURL(url);
 
       // Log export
-      await supabase.from('excel_sync_logs').insert([
-        {
-          operation_type: 'export',
-          source_file: 'votes-export.csv',
-          status: 'success',
-          records_affected: votes.length,
-        },
-      ]);
+      await localDB.create('excel_sync_logs', {
+        id: generateId(),
+        operation_type: 'export',
+        source_file: 'votes-export.csv',
+        status: 'success',
+        records_affected: votes.length,
+      });
     } catch (error) {
       console.error('[v0] Export error:', error);
       alert('Erreur lors de l\'export');

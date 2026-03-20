@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { JuryMember } from '@/types';
+import { getJurySession, clearJurySession } from '@/lib/local-auth';
 
 export function useJuryAuth() {
   const router = useRouter();
@@ -11,16 +12,12 @@ export function useJuryAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuth = () => {
       try {
-        // Check if session exists by trying to fetch jury data
-        const response = await fetch('/api/auth/check-jury', {
-          method: 'GET',
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setJuryMember(data.juryMember);
+        const juryData = getJurySession();
+        
+        if (juryData) {
+          setJuryMember(juryData);
           setIsAuthenticated(true);
         } else {
           setIsAuthenticated(false);
@@ -37,9 +34,9 @@ export function useJuryAuth() {
     checkAuth();
   }, [router]);
 
-  const logout = async () => {
+  const logout = () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      clearJurySession();
       setJuryMember(null);
       setIsAuthenticated(false);
       router.push('/');

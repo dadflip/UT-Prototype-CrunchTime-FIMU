@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { localDB } from '@/lib/local-storage';
 import { Artist, Category } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,22 +28,15 @@ export default function PerformanceFlowPage() {
     const loadData = async () => {
       try {
         setLoading(true);
+        await localDB.init();
 
         // Fetch categories
-        const { data: categoriesData } = await supabase
-          .from('categories')
-          .select('*')
-          .order('display_order', { ascending: true });
-
-        setCategories(categoriesData || []);
+        const categoriesData = await localDB.getAll('categories');
+        setCategories(categoriesData as Category[]);
 
         // Fetch all artists
-        const { data: artistsData } = await supabase
-          .from('artists')
-          .select('*')
-          .order('performance_order', { ascending: true });
-
-        setArtists(artistsData || []);
+        const artistsData = await localDB.getAll('artists');
+        setArtists(artistsData as Artist[]);
       } catch (error) {
         console.error('[v0] Failed to load data:', error);
       } finally {
@@ -56,16 +49,12 @@ export default function PerformanceFlowPage() {
 
   const toggleVisibility = async (artistId: string, isVisible: boolean) => {
     try {
-      const { error } = await supabase
-        .from('artists')
-        .update({ is_visible: !isVisible })
-        .eq('id', artistId);
-
-      if (error) throw error;
+      await localDB.init();
+      await localDB.update('artists', { id: artistId, is_active: !isVisible });
 
       setArtists((prev) =>
         prev.map((a) =>
-          a.id === artistId ? { ...a, is_visible: !isVisible } : a
+          a.id === artistId ? { ...a, is_active: !isVisible } : a
         )
       );
     } catch (error) {
@@ -77,7 +66,7 @@ export default function PerformanceFlowPage() {
     return categories.find((c) => c.id === categoryId)?.name || 'Catégorie inconnue';
   };
 
-  const filteredArtists = selectedCategory
+  const filteredArtists = selectedCategory && selectedCategory !== 'all'
     ? artists.filter((a) => a.category_id === selectedCategory)
     : artists;
 
@@ -117,7 +106,7 @@ export default function PerformanceFlowPage() {
               <SelectValue placeholder="Voir tous les artistes" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Tous les artistes</SelectItem>
+              <SelectItem value="all">Tous les artistes</SelectItem>
               {categories.map((cat) => (
                 <SelectItem key={cat.id} value={cat.id}>
                   {cat.name}
@@ -153,7 +142,7 @@ export default function PerformanceFlowPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
                       <div className="text-sm font-semibold text-muted-foreground min-w-8">
-                        #{artist.performance_order}
+                        #{artist.artist_number}
                       </div>
                       <div>
                         <p className="font-semibold">{artist.name}</p>
@@ -165,11 +154,11 @@ export default function PerformanceFlowPage() {
                   </div>
 
                   <Button
-                    variant={artist.is_visible ? 'default' : 'outline'}
+                    variant={artist.is_active ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => toggleVisibility(artist.id, artist.is_visible)}
+                    onClick={() => toggleVisibility(artist.id, artist.is_active)}
                   >
-                    {artist.is_visible ? '👁️ Visible' : '👁️‍🗨️ Caché'}
+                    {artist.is_active ? '👁️ Visible' : '👁️‍🗨️ Caché'}
                   </Button>
                 </div>
               ))

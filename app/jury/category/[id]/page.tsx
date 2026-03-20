@@ -3,12 +3,21 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useJuryAuth } from '@/hooks/useJuryAuth';
-import { supabase } from '@/lib/supabase';
+import { localDB } from '@/lib/local-storage';
 import { Category, Artist, Vote } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+
+// Helper function to generate ID fallback
+const generateId = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 export default function CategoryVotingPage() {
   const params = useParams();
@@ -29,14 +38,11 @@ export default function CategoryVotingPage() {
 
       try {
         setLoading(true);
+        await localDB.init();
 
         // Get current voting session
-        const { data: session } = await supabase
-          .from('voting_sessions')
-          .select('id')
-          .eq('status', 'open')
-          .limit(1)
-          .single();
+        const sessions = await localDB.getAll('voting_sessions');
+        const session = (sessions as any[]).find((s: any) => s.status === 'open');
 
         if (!session) {
           console.error('[v0] No open voting session');
@@ -45,40 +51,34 @@ export default function CategoryVotingPage() {
         setCurrentSession(session.id);
 
         // Fetch category
-        const { data: categoryData, error: categoryError } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('id', categoryId)
-          .eq('is_active', true)
-          .single();
+        const categoriesData = await localDB.getAll('categories');
+        const categoryData = (categoriesData as any[]).find((c: any) => c.id === categoryId && c.is_active);
 
-        if (categoryError) throw categoryError;
+        if (!categoryData) {
+          console.error('[v0] Category not found');
+          return;
+        }
         setCategory(categoryData);
 
         // Fetch artists in this category
-        const { data: artistsData, error: artistsError } = await supabase
-          .from('artists')
-          .select('*')
-          .eq('category_id', categoryId)
-          .eq('is_active', true)
-          .order('artist_number', { ascending: true });
+        const artistsData = await localDB.getAll('artists');
+        const categoryArtists = (artistsData as any[]).filter((a: any) => 
+          a.category_id === categoryId && a.is_active
+        ).sort((a: any, b: any) => a.artist_number - b.artist_number);
 
-        if (artistsError) throw artistsError;
-        setArtists(artistsData || []);
+        setArtists(categoryArtists);
 
         // Fetch this jury's votes for this category in this session
-        const { data: votesData, error: votesError } = await supabase
-          .from('votes')
-          .select('artist_id, rank_position')
-          .eq('jury_member_id', juryMember.id)
-          .eq('session_id', session.id);
-
-        if (votesError) throw votesError;
+        const votesData = await localDB.getAll('votes');
+        const juryVotes = (votesData as any[]).filter((v: any) => 
+          v.jury_member_id === juryMember.id && 
+          v.category_id === categoryId
+        );
 
         // Map votes by artist ID for quick lookup
         const votesMap: Record<string, number> = {};
-        (votesData || []).forEach((vote) => {
-          votesMap[vote.artist_id] = vote.rank_position;
+        juryVotes.forEach((vote: any) => {
+          votesMap[vote.artist_id] = vote.score;
         });
         setVotes(votesMap);
       } catch (error) {
@@ -91,58 +91,40 @@ export default function CategoryVotingPage() {
     loadData();
   }, [categoryId, juryMember?.id]);
 
-  const handleVote = async (artistId: string, rankPosition: number) => {
+  const handleSubmitVote = async (artistId: string, rankPosition: number) => {
     if (!juryMember?.id || !currentSession) return;
 
-    setSubmitting(true);
     try {
-      // Check if vote already exists for this rank position
-      const { data: existingRankVote } = await supabase
-        .from('votes')
-        .select('id')
-        .eq('jury_member_id', juryMember.id)
-        .eq('session_id', currentSession)
-        .eq('rank_position', rankPosition)
-        .single();
+      setSubmitting(true);
+      await localDB.init();
 
-      if (existingRankVote) {
-        // Remove old vote for this rank
-        await supabase
-          .from('votes')
-          .delete()
-          .eq('id', existingRankVote.id);
-      }
+      // Get all existing votes for this jury member in this session
+      const votesData = await localDB.getAll('votes');
+      const existingVotes = (votesData as any[]).filter((v: any) => 
+        v.jury_member_id === juryMember.id && 
+        v.session_id === currentSession
+      );
 
-      // Check if this artist already has a vote
-      const { data: existingArtistVote } = await supabase
-        .from('votes')
-        .select('id')
-        .eq('jury_member_id', juryMember.id)
-        .eq('session_id', currentSession)
-        .eq('artist_id', artistId)
-        .single();
+      // Remove existing votes for this rank position or artist
+      const votesToRemove = existingVotes.filter((v: any) => 
+        v.category_id === categoryId && 
+        (v.score === rankPosition || v.artist_id === artistId)
+      );
 
-      if (existingArtistVote) {
-        // Delete old vote for this artist
-        await supabase
-          .from('votes')
-          .delete()
-          .eq('id', existingArtistVote.id);
+      for (const vote of votesToRemove) {
+        await localDB.delete('votes', vote.id);
       }
 
       // Insert new vote
-      const { error } = await supabase
-        .from('votes')
-        .insert([
-          {
-            jury_member_id: juryMember.id,
-            artist_id: artistId,
-            session_id: currentSession,
-            rank_position: rankPosition,
-          },
-        ]);
-
-      if (error) throw error;
+      await localDB.create('votes', {
+        id: generateId(),
+        jury_member_id: juryMember.id,
+        artist_id: artistId,
+        category_id: categoryId,
+        session_id: currentSession,
+        score: rankPosition,
+        created_at: new Date().toISOString()
+      });
 
       // Update local state
       const newVotes = { ...votes };
@@ -236,7 +218,7 @@ export default function CategoryVotingPage() {
                           variant={rank === position ? 'default' : 'outline'}
                           size="sm"
                           className="w-full"
-                          onClick={() => handleVote(artist.id, position)}
+                          onClick={() => handleSubmitVote(artist.id, position)}
                           disabled={submitting}
                         >
                           {position}
@@ -248,7 +230,7 @@ export default function CategoryVotingPage() {
                         variant="ghost"
                         size="sm"
                         className="w-full text-destructive"
-                        onClick={() => handleVote(artist.id, 0)}
+                        onClick={() => handleSubmitVote(artist.id, 0)}
                         disabled={submitting}
                       >
                         Retirer le vote
