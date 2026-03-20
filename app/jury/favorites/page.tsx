@@ -11,6 +11,15 @@ import { Category, Artist, JuryFavorite } from '@/types';
 import { localDB } from '@/lib/local-storage';
 import { useJuryAuth } from '@/hooks/useJuryAuth';
 
+// Helper function to generate ID fallback
+const generateId = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export default function JuryFavoritesPage() {
   const { juryMember } = useJuryAuth();
   const router = useRouter();
@@ -28,22 +37,30 @@ export default function JuryFavoritesPage() {
   const loadData = async () => {
     try {
       setIsLoading(true);
+      await localDB.init();
+      
       const [categoriesData, artistsData, favoritesData] = await Promise.all([
         localDB.getAll('categories'),
         localDB.getAll('artists'),
         juryMember ? localDB.findBy('jury_favorites', 'jury_member_id', juryMember.id) : []
       ]);
 
+      console.log('[FAVORITES] Données chargées:', {
+        categories: (categoriesData as any[]).length,
+        artists: (artistsData as any[]).length,
+        favorites: (favoritesData as any[])?.length || 0
+      });
+
       // Filtrer catégories actives et trier
-      const activeCategories = categoriesData
+      const activeCategories = (categoriesData as any[])
         .filter((cat: any) => cat.is_active)
         .sort((a: any, b: any) => a.order_index - b.order_index);
       
       setCategories(activeCategories);
-      setArtists(artistsData);
-      setFavorites(favoritesData || []);
+      setArtists(artistsData as Artist[]);
+      setFavorites((favoritesData as JuryFavorite[]) || []);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('[FAVORITES] Error loading data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -61,19 +78,41 @@ export default function JuryFavoritesPage() {
     if (!juryMember) return;
 
     const isFavorite = favorites.some(fav => fav.artist_id === artist.id);
+    const categoryFavorites = favorites.filter(fav => fav.category_id === categoryId);
+    const category = categories.find(cat => cat.id === categoryId);
+    const maxFavorites = category?.top_size || 5;
+    
+    console.log('[FAVORITES] Toggle favorite:', { 
+      artist: artist.name, 
+      isFavorite, 
+      categoryId, 
+      currentCount: categoryFavorites.length,
+      maxFavorites
+    });
     
     try {
+      await localDB.init();
+      
       if (isFavorite) {
         // Retirer des favoris
         const favorite = favorites.find(fav => fav.artist_id === artist.id);
         if (favorite) {
+          console.log('[FAVORITES] Suppression du favori:', favorite.id);
           await localDB.delete('jury_favorites', favorite.id);
           setFavorites(prev => prev.filter(fav => fav.id !== favorite.id));
+          console.log('[FAVORITES] Favori supprimé, reste:', favorites.length - 1);
         }
       } else {
+        // Vérifier si on peut ajouter un nouveau favori
+        if (categoryFavorites.length >= maxFavorites) {
+          console.log('[FAVORITES] Limite atteinte, impossible d\'ajouter');
+          alert(`Vous avez déjà sélectionné ${maxFavorites} artistes pour cette catégorie. Retirez d'abord un artiste de vos favoris.`);
+          return;
+        }
+        
         // Ajouter aux favoris
         const newFavorite: JuryFavorite = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           jury_member_id: juryMember.id,
           artist_id: artist.id,
           category_id: categoryId,
@@ -81,11 +120,13 @@ export default function JuryFavoritesPage() {
           updated_at: new Date().toISOString()
         };
         
+        console.log('[FAVORITES] Ajout du favori:', newFavorite);
         await localDB.create('jury_favorites', newFavorite);
         setFavorites(prev => [...prev, newFavorite]);
+        console.log('[FAVORITES] Favori ajouté, total:', favorites.length + 1);
       }
     } catch (error) {
-      console.error('Error toggling favorite:', error);
+      console.error('[FAVORITES] Error toggling favorite:', error);
     }
   };
 
@@ -136,8 +177,8 @@ export default function JuryFavoritesPage() {
                   </div>
                   <CardDescription>
                     {canRank 
-                      ? "Prêt pour le classement" 
-                      : `Sélectionnez ${requiredSize - categoryFavorites.length} artiste${requiredSize - categoryFavorites.length > 1 ? 's' : ''}`
+                      ? "✅ Prêt pour le classement" 
+                      : `Sélectionnez ${requiredSize - categoryFavorites.length} artiste${requiredSize - categoryFavorites.length > 1 ? 's' : ''} sur ${requiredSize}`
                     }
                   </CardDescription>
                 </CardHeader>

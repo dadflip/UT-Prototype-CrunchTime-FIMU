@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useJuryAuth } from '@/hooks/useJuryAuth';
 import { localDB } from '@/lib/local-storage';
@@ -19,11 +19,11 @@ const generateId = () => {
   });
 };
 
-export default function CategoryVotingPage() {
-  const params = useParams();
+export default function CategoryVotingPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { juryMember } = useJuryAuth();
-  const categoryId = params.id as string;
+  const resolvedParams = use(params);
+  const categoryId = resolvedParams.id;
 
   const [category, setCategory] = useState<Category | null>(null);
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -52,10 +52,13 @@ export default function CategoryVotingPage() {
 
         // Fetch category
         const categoriesData = await localDB.getAll('categories');
+        console.log('[CATEGORY] Catégories disponibles:', (categoriesData as any[]).map((c: any) => ({ id: c.id, name: c.name, is_active: c.is_active })));
+        console.log('[CATEGORY] Recherche de la catégorie avec ID:', categoryId);
+        
         const categoryData = (categoriesData as any[]).find((c: any) => c.id === categoryId && c.is_active);
 
         if (!categoryData) {
-          console.error('[v0] Category not found');
+          console.error('[CATEGORY] Category not found for ID:', categoryId);
           return;
         }
         setCategory(categoryData);

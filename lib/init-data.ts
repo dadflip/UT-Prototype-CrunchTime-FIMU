@@ -52,9 +52,14 @@ const initialData = {
   ],
   
   artists: {
-    'Rock': ['The Beatles', 'The Rolling Stones', 'Queen', 'Led Zeppelin'],
-    'Jazz': ['Miles Davis', 'John Coltrane', 'Ella Fitzgerald'],
-    'Pop': ['Michael Jackson', 'Madonna', 'Prince']
+    'Rock': ['The Beatles', 'The Rolling Stones', 'Queen', 'Led Zeppelin', 'Pink Floyd', 'The Who', 'AC/DC', 'Nirvana', 'Metallica', 'Guns N\' Roses'],
+    'Jazz': ['Miles Davis', 'John Coltrane', 'Ella Fitzgerald', 'Louis Armstrong', 'Billie Holiday', 'Duke Ellington', 'Charlie Parker', 'Thelonious Monk', 'Herbie Hancock', 'Wayne Shorter'],
+    'Pop': ['Michael Jackson', 'Madonna', 'Prince', 'Britney Spears', 'Justin Timberlake', 'Lady Gaga', 'Taylor Swift', 'Adele', 'Ed Sheeran', 'Bruno Mars'],
+    'Électronique': ['Daft Punk', 'Deadmau5', 'Skrillex', 'Calvin Harris', 'Avicii', 'Martin Garrix', 'Tiësto', 'Swedish House Mafia', 'David Guetta', 'Zedd'],
+    'Hip-Hop': ['Eminem', 'Jay-Z', 'Kendrick Lamar', 'Drake', 'Kanye West', 'Nas', 'Tupac', 'Notorious B.I.G.', 'Snoop Dogg', 'Ice Cube'],
+    'Classique': ['Mozart', 'Beethoven', 'Bach', 'Chopin', 'Vivaldi', 'Tchaikovsky', 'Brahms', 'Schubert', 'Liszt', 'Debussy'],
+    'World': ['Bob Marley', 'Fela Kuti', 'Miriam Makeba', 'Youssou N\'Dour', 'Cesária Évora', 'Manu Chao', 'Gipsy Kings', 'Angélique Kidjo', 'Salif Keita', 'Ali Farka Touré'],
+    'Reggae': ['Bob Marley & The Wailers', 'Peter Tosh', 'Burning Spear', 'Jimmy Cliff', 'Toots & the Maytals', 'Black Uhuru', 'Culture', 'Gregory Isaacs', 'Dennis Brown', 'Bunny Wailer']
   }
 };
 
@@ -118,10 +123,15 @@ export async function initializeDatabase(): Promise<void> {
     console.log(`[INIT] ${initialData.juryMembers.length} jurés créés (PIN: 1234)`);
     
     // 4. Créer les artistes
+    let totalArtistsCreated = 0;
     for (const [categoryName, artistNames] of Object.entries(initialData.artists)) {
       const category = createdCategories.find(cat => cat.name === categoryName);
-      if (!category) continue;
+      if (!category) {
+        console.log(`[INIT] Catégorie non trouvée: ${categoryName}`);
+        continue;
+      }
       
+      console.log(`[INIT] Création de ${artistNames.length} artistes pour la catégorie ${categoryName}`);
       for (let i = 0; i < artistNames.length; i++) {
         const artist: Artist = {
           id: generateUUID(),
@@ -132,9 +142,10 @@ export async function initializeDatabase(): Promise<void> {
         };
         
         await localDB.create('artists', artist);
+        totalArtistsCreated++;
       }
     }
-    console.log(`[INIT] Artistes créés pour ${Object.keys(initialData.artists).length} catégories`);
+    console.log(`[INIT] Total de ${totalArtistsCreated} artistes créés pour ${Object.keys(initialData.artists).length} catégories`);
     
     // 5. Créer une session de vote
     const votingSession: VotingSession = {

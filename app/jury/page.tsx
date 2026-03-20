@@ -170,16 +170,18 @@ export default function JuryDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      <Link href={`/jury/category/${category.id}`}>
-                        <Button variant="outline" className="w-full">
-                          Vote traditionnel
-                        </Button>
-                      </Link>
-                      {canRank && (
+                      {canRank ? (
                         <Link href={`/jury/ranking/${category.id}`}>
                           <Button className="w-full">
                             <ArrowRight className="h-4 w-4 mr-2" />
                             Classer mes favoris
+                          </Button>
+                        </Link>
+                      ) : (
+                        <Link href={`/jury/category/${category.id}`}>
+                          <Button variant="outline" className="w-full">
+                            <Heart className="h-4 w-4 mr-2" />
+                            Sélectionner mes favoris ({favCount}/{topSize})
                           </Button>
                         </Link>
                       )}

@@ -316,7 +316,7 @@ class LocalDatabase {
   }
 
   async clearAll(): Promise<void> {
-    const storeNames = ['admin_users', 'jury_members', 'categories', 'artists', 'votes', 'voting_sessions'];
+    const storeNames = ['admin_users', 'jury_members', 'categories', 'artists', 'votes', 'voting_sessions', 'jury_favorites', 'rankings', 'excel_sync_logs'];
     for (const storeName of storeNames) {
       await this.clear(storeName);
     }

@@ -2,15 +2,16 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
+import { Footer } from '@/components/brand/Footer'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: 'FIMU - Festival International de Musique Universitaire',
+  description: 'Système de vote et de classement pour le FIMU',
+  generator: 'FIMU Voting System',
   icons: {
     icon: [
       {
@@ -36,14 +37,17 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${_geist.className} ${_geistMono.className} font-sans antialiased`}>
+    <html lang="fr" suppressHydrationWarning>
+      <body className={`${_geist.className} ${_geistMono.className} font-sans antialiased min-h-screen flex flex-col`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
           disableTransitionOnChange
         >
-          {children}
+          <main className="flex-1">
+            {children}
+          </main>
+          <Footer />
         </ThemeProvider>
         {/* <Analytics /> */}
       </body>
