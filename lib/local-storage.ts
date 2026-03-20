@@ -73,6 +73,16 @@ export interface Ranking {
   is_finalist?: boolean;
 }
 
+export interface JuryFavorite {
+  id: string;
+  jury_member_id: string;
+  artist_id: string;
+  category_id: string;
+  rank?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // Fonction UUID compatible avec tous les navigateurs
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -89,7 +99,7 @@ function generateUUID(): string {
 // Classe pour gérer IndexedDB
 class LocalDatabase {
   private dbName = 'fimuVotingDB';
-  private version = 2;
+  private version = 3; // Incrémenté pour ajouter jury_favorites
   private db: IDBDatabase | null = null;
 
   async init(): Promise<void> {
@@ -149,6 +159,14 @@ class LocalDatabase {
           rankingStore.createIndex('artist_id', 'artist_id');
           rankingStore.createIndex('session_id', 'session_id');
         }
+
+        if (!db.objectStoreNames.contains('jury_favorites')) {
+          const favoritesStore = db.createObjectStore('jury_favorites', { keyPath: 'id' });
+          favoritesStore.createIndex('jury_member_id', 'jury_member_id');
+          favoritesStore.createIndex('artist_id', 'artist_id');
+          favoritesStore.createIndex('category_id', 'category_id');
+          favoritesStore.createIndex('jury_category', ['jury_member_id', 'category_id']);
+        }
       };
     });
   }
@@ -207,6 +225,19 @@ class LocalDatabase {
       const store = this.getStore(storeName, 'readwrite');
       const request = store.delete(id);
       request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async findBy<T>(storeName: string, field: string, value: string): Promise<T[]> {
+    return new Promise((resolve, reject) => {
+      const store = this.getStore(storeName);
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const allItems = request.result as T[];
+        const filteredItems = allItems.filter((item: any) => item[field] === value);
+        resolve(filteredItems);
+      };
       request.onerror = () => reject(request.error);
     });
   }

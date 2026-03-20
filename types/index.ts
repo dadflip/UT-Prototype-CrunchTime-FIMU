@@ -5,6 +5,7 @@ export interface Category {
   description?: string;
   order_index: number;
   is_active: boolean;
+  top_size?: number; // Nombre d'artistes dans le top pour cette catégorie
 }
 
 export interface Artist {
@@ -32,6 +33,16 @@ export interface Vote {
   category_id: string;
   score: number;
   created_at: string;
+}
+
+export interface JuryFavorite {
+  id: string;
+  jury_member_id: string;
+  artist_id: string;
+  category_id: string;
+  rank?: number; // Position dans le classement du jury
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Ranking {

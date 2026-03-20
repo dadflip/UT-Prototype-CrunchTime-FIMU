@@ -50,7 +50,8 @@ export default function PerformanceFlowPage() {
   const toggleVisibility = async (artistId: string, isVisible: boolean) => {
     try {
       await localDB.init();
-      await localDB.update('artists', { id: artistId, is_active: !isVisible });
+      const updatedArtist = { id: artistId, is_active: !isVisible };
+      await localDB.update('artists', updatedArtist);
 
       setArtists((prev) =>
         prev.map((a) =>
